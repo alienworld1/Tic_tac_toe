@@ -1,6 +1,7 @@
 import basegame
 import pygame
 import os
+from copy import deepcopy
 
 pygame.init()
 WIDTH, HEIGHT = 500, 500
@@ -40,6 +41,60 @@ def convert_board(tBoard):
     return l
 
 
+#The AI stuff starts here
+def evaluate_board(tBoard: basegame.board):
+    '''Must only be called if the game is over.'''
+    gameResult = tBoard.CheckBoard()
+    if gameResult == -1:
+        raise ValueError('The game is not over yet.')
+    elif gameResult == 0:
+        return 1
+    elif gameResult == 1:
+        return -1
+    return 0
+
+
+def minimax(board: basegame.board, isMaximizing: bool, alpha=-float("Inf"), beta=float("Inf")):
+    '''
+    :param isMaximizing: True if the AI is X, false if the AI is O
+    '''
+
+    result = board.CheckBoard()
+    #Base case, since the game is over, we return the value of the board
+    if result != -1:
+        return [evaluate_board(board), '']
+
+    bestMove = ''
+    if isMaximizing:
+        symbol = 'X'
+        bestValue = -float('Inf')
+    else:
+        symbol = 'O'
+        bestValue = float('Inf')
+
+    moves = board.get_moves()
+    for move in moves:
+        newBoard = deepcopy(board)
+        newBoard.set(symbol, move[1], move[0])
+        newEval = minimax(newBoard, not isMaximizing, alpha, beta)[0]
+        if isMaximizing and newEval > bestValue:
+            bestMove = move
+            bestValue = newEval
+            alpha = max(bestValue, alpha)
+        if not isMaximizing and newEval < bestValue:
+            bestMove = move
+            bestValue = newEval
+            beta = min(bestValue, beta)
+        if alpha > beta:
+            break
+    return [bestValue, bestMove]
+
+
+def test():
+    testBoard = basegame.board()
+    testBoard.board = [[' ', ' ', ' '], [' ', ' ', ' '], [' ', ' ', ' ']]
+    print(minimax(testBoard, True))
+
 def draw_window(tBoard, moveText, moveRect):
     window.fill(backColor)
     for i in range(3):
@@ -49,6 +104,20 @@ def draw_window(tBoard, moveText, moveRect):
     window.blit(moveText, moveRect)
     pygame.display.update()
 
+
+def ai_move(isX):
+    '''
+    Lets the minimax algorithm make a move.
+
+    :param gameResult: board's CheckResult
+    :param isX: True if the AI is X, false if it is O
+    '''
+    if isX:
+        curMove = 'X'
+    else:
+        curMove = 'O'
+    aiMove = minimax(gameBoard, isX)
+    gameBoard.set(curMove, aiMove[1][1], aiMove[1][0])
 
 def main():
     rectList = [[], [], []]
@@ -72,13 +141,16 @@ def main():
                     for j in range(3):
                         if rectList[i][j].collidepoint(event.pos):
                             try:
-                                if result == -1:
+                                if result == -1 and curMove == 'O':
                                     gameBoard.set(curMove, j, i)
                             except:
                                 pass
 
+        result = gameBoard.CheckBoard()
         curMove = gameBoard.CheckTurn()
         if curMove == 'X':
+            if result == -1:
+                ai_move(True)
             color = xColor
         else:
             color = oColor
@@ -87,7 +159,6 @@ def main():
         moveRect.center = 250, 50
 
         # To check the win conditions
-        result = gameBoard.CheckBoard()
         if result == 0:
             moveText = openSans.render('X wins!', True, xColor)
             moveRect = moveText.get_rect()
